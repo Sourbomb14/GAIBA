@@ -4,3 +4,4 @@ yfinance
 plotly
 numpy
 google-generativeai
+kaggle
