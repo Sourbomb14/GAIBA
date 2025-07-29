@@ -7,6 +7,7 @@ import numpy as np
 import google.generativeai as genai
 import os
 from datetime import datetime, timedelta
+import kaggle # Import the kaggle library
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -17,8 +18,6 @@ st.set_page_config(
 )
 
 # --- API Key Configuration ---
-# It's recommended to use st.secrets for production, but for quick demo,
-# we'll use text input or environment variables.
 st.sidebar.header("API Key Configuration")
 gemini_api_key = st.sidebar.text_input("Enter your Gemini API Key", type="password", help="Get your key from Google AI Studio.")
 
@@ -30,29 +29,79 @@ else:
 
 # --- Helper Functions ---
 
-# Function to generate dummy marketing data (since direct Kaggle API integration is complex for a simple demo)
+# Function to download and load marketing data from Kaggle
 @st.cache_data
-def generate_marketing_data(num_records=1000):
-    np.random.seed(42) # for reproducibility
-    data = {
-        'CustomerID': range(1, num_records + 1),
-        'Age': np.random.randint(18, 70, num_records),
-        'Income': np.random.randint(30000, 150000, num_records),
-        'Education': np.random.choice(['High School', 'Bachelors', 'Masters', 'PhD'], num_records, p=[0.25, 0.4, 0.2, 0.15]),
-        'MaritalStatus': np.random.choice(['Single', 'Married', 'Divorced', 'Widowed'], num_records, p=[0.3, 0.5, 0.15, 0.05]),
-        'CampaignType': np.random.choice(['Email', 'Social Media', 'Direct Mail', 'TV Ad'], num_records, p=[0.35, 0.3, 0.2, 0.15]),
-        'Spend': np.random.randint(50, 2000, num_records),
-        'Clicks': np.random.randint(5, 100, num_records),
-        'Conversions': np.random.randint(0, 5, num_records), # Number of conversions
-        'PurchaseValue': np.random.randint(100, 5000, num_records)
-    }
-    df = pd.DataFrame(data)
-    # Simulate conversion rate based on spend and campaign type
-    df['ConversionRate'] = (df['Conversions'] / df['Clicks'] * 100).fillna(0)
-    df.loc[df['ConversionRate'] > 100, 'ConversionRate'] = 100 # Cap at 100%
-    df['ROI'] = ((df['PurchaseValue'] * df['Conversions']) - df['Spend']) / df['Spend'] * 100
-    df.loc[df['Spend'] == 0, 'ROI'] = 0 # Handle division by zero for ROI
-    return df
+def load_marketing_data_from_kaggle(dataset_path="manishabhatt22/marketing-campaign-performance-dataset"):
+    """
+    Downloads the specified Kaggle dataset and loads it into a pandas DataFrame.
+    Assumes Kaggle API credentials are set up (KAGGLE_USERNAME, KAGGLE_KEY env vars).
+    """
+    try:
+        # Initialize Kaggle API
+        # Kaggle API expects credentials in ~/.kaggle/kaggle.json or environment variables
+        # For Streamlit Cloud, you'd set these as secrets.
+        # For local, ensure KAGGLE_USERNAME and KAGGLE_KEY are set in your environment.
+        kaggle.api.authenticate()
+
+        # Define download path
+        download_dir = "./kaggle_data"
+        os.makedirs(download_dir, exist_ok=True)
+
+        st.info(f"Attempting to download Kaggle dataset: {dataset_path} to {download_dir}")
+        kaggle.api.dataset_download_files(dataset_path, path=download_dir, unzip=True)
+        st.success("Kaggle dataset downloaded successfully!")
+
+        # Assuming the CSV file name inside the zip is 'marketing_campaign_performance.csv'
+        # You might need to adjust this based on the actual file name in the zip.
+        # Let's list files in the downloaded directory to find the correct CSV.
+        downloaded_files = os.listdir(download_dir)
+        csv_file = None
+        for f in downloaded_files:
+            if f.endswith('.csv'):
+                csv_file = os.path.join(download_dir, f)
+                break
+
+        if csv_file:
+            df = pd.read_csv(csv_file)
+            st.success(f"Loaded data from {os.path.basename(csv_file)}")
+
+            # Perform necessary data cleaning/preparation for the specific dataset
+            # Based on the dataset name, it might have columns like 'Spend', 'ConversionRate', 'ROI'
+            # Let's ensure these columns exist or create dummy ones if not for consistency with the app.
+            if 'Spend' not in df.columns:
+                df['Spend'] = np.random.randint(50, 2000, len(df))
+            if 'Clicks' not in df.columns:
+                df['Clicks'] = np.random.randint(5, 100, len(df))
+            if 'Conversions' not in df.columns:
+                df['Conversions'] = np.random.randint(0, 5, len(df))
+            if 'PurchaseValue' not in df.columns:
+                df['PurchaseValue'] = np.random.randint(100, 5000, len(df))
+
+            df['ConversionRate'] = (df['Conversions'] / df['Clicks'] * 100).fillna(0)
+            df.loc[df['ConversionRate'] > 100, 'ConversionRate'] = 100 # Cap at 100%
+            df['ROI'] = ((df['PurchaseValue'] * df['Conversions']) - df['Spend']) / df['Spend'] * 100
+            df.loc[df['Spend'] == 0, 'ROI'] = 0 # Handle division by zero for ROI
+
+            # Ensure CampaignType exists or create a dummy one
+            if 'CampaignType' not in df.columns:
+                 df['CampaignType'] = np.random.choice(['Email', 'Social Media', 'Direct Mail', 'TV Ad'], len(df), p=[0.35, 0.3, 0.2, 0.15])
+            # Ensure Age and Income exist or create dummy ones
+            if 'Age' not in df.columns:
+                df['Age'] = np.random.randint(18, 70, len(df))
+            if 'Income' not in df.columns:
+                df['Income'] = np.random.randint(30000, 150000, len(df))
+            if 'CustomerID' not in df.columns:
+                df['CustomerID'] = range(1, len(df) + 1)
+
+
+            return df
+        else:
+            st.error("No CSV file found in the downloaded Kaggle dataset.")
+            return pd.DataFrame() # Return empty DataFrame on failure
+    except Exception as e:
+        st.error(f"Error loading marketing data from Kaggle: {e}")
+        st.warning("Please ensure your Kaggle API credentials (KAGGLE_USERNAME and KAGGLE_KEY) are set as environment variables or in ~/.kaggle/kaggle.json.")
+        return pd.DataFrame() # Return empty DataFrame on error
 
 # Function to fetch financial data
 @st.cache_data
@@ -79,7 +128,15 @@ def calculate_financial_metrics(df):
     metrics['52 Week High'] = df['High'].max()
     metrics['52 Week Low'] = df['Low'].min()
     metrics['Average Volume'] = df['Volume'].mean()
-    metrics['Market Cap'] = yf.Ticker(df.index.name).info.get('marketCap') if df.index.name else 'N/A' # Get market cap from info
+    # Attempt to get market cap from ticker info, handle cases where index is not a ticker
+    try:
+        if df.index.name: # Check if index has a name (which would be the ticker symbol)
+            info = yf.Ticker(df.index.name).info
+            metrics['Market Cap'] = info.get('marketCap')
+        else:
+            metrics['Market Cap'] = 'N/A'
+    except Exception:
+        metrics['Market Cap'] = 'N/A'
     return metrics
 
 # Function to generate Instagram post content using Gemini
@@ -119,139 +176,169 @@ if section == "Marketing Analytics":
     st.header("📊 Marketing Analytics Dashboard")
     st.markdown("Analyze your marketing campaign performance and customer segments.")
 
-    marketing_df = generate_marketing_data()
+    # Load data from Kaggle
+    marketing_df = load_marketing_data_from_kaggle()
 
-    if marketing_df is not None:
+    if not marketing_df.empty:
         # Slicers for Marketing Data
         st.sidebar.subheader("Marketing Data Filters")
-        selected_campaign_type = st.sidebar.multiselect(
-            "Filter by Campaign Type",
-            options=marketing_df['CampaignType'].unique(),
-            default=marketing_df['CampaignType'].unique()
-        )
-        min_age, max_age = int(marketing_df['Age'].min()), int(marketing_df['Age'].max())
+        # Ensure 'CampaignType' exists in the loaded data
+        if 'CampaignType' in marketing_df.columns:
+            selected_campaign_type = st.sidebar.multiselect(
+                "Filter by Campaign Type",
+                options=marketing_df['CampaignType'].unique(),
+                default=marketing_df['CampaignType'].unique()
+            )
+        else:
+            selected_campaign_type = [] # No campaign type to filter by if column missing
+            st.sidebar.warning("No 'CampaignType' column found in dataset. Filtering disabled.")
+
+        # Ensure 'Age' and 'Income' exist
+        min_age, max_age = 18, 70 # Default range if not found
+        if 'Age' in marketing_df.columns:
+            min_age, max_age = int(marketing_df['Age'].min()), int(marketing_df['Age'].max())
         age_range = st.sidebar.slider("Filter by Age Range", min_age, max_age, (min_age, max_age))
-        min_income, max_income = int(marketing_df['Income'].min()), int(marketing_df['Income'].max())
+
+        min_income, max_income = 30000, 150000 # Default range if not found
+        if 'Income' in marketing_df.columns:
+            min_income, max_income = int(marketing_df['Income'].min()), int(marketing_df['Income'].max())
         income_range = st.sidebar.slider("Filter by Income Range", min_income, max_income, (min_income, max_income))
 
-        filtered_marketing_df = marketing_df[
-            (marketing_df['CampaignType'].isin(selected_campaign_type)) &
-            (marketing_df['Age'].between(age_range[0], age_range[1])) &
-            (marketing_df['Income'].between(income_range[0], income_range[1]))
-        ]
+        # Apply filters
+        filtered_marketing_df = marketing_df
+        if selected_campaign_type and 'CampaignType' in filtered_marketing_df.columns:
+            filtered_marketing_df = filtered_marketing_df[filtered_marketing_df['CampaignType'].isin(selected_campaign_type)]
+        if 'Age' in filtered_marketing_df.columns:
+            filtered_marketing_df = filtered_marketing_df[filtered_marketing_df['Age'].between(age_range[0], age_range[1])]
+        if 'Income' in filtered_marketing_df.columns:
+            filtered_marketing_df = filtered_marketing_df[filtered_marketing_df['Income'].between(income_range[0], income_range[1])]
 
-        st.subheader("Key Marketing Indicators")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Spend", f"${filtered_marketing_df['Spend'].sum():,.2f}")
-        with col2:
-            st.metric("Avg. Conversion Rate", f"{filtered_marketing_df['ConversionRate'].mean():.2f}%")
-        with col3:
-            st.metric("Avg. ROI", f"{filtered_marketing_df['ROI'].mean():.2f}%")
-        with col4:
-            st.metric("Total Customers", f"{filtered_marketing_df['CustomerID'].nunique()}")
+        if filtered_marketing_df.empty:
+            st.warning("No data matches the selected filters. Please adjust your selections.")
+        else:
+            st.subheader("Key Marketing Indicators")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Spend", f"${filtered_marketing_df['Spend'].sum():,.2f}")
+            with col2:
+                st.metric("Avg. Conversion Rate", f"{filtered_marketing_df['ConversionRate'].mean():.2f}%")
+            with col3:
+                st.metric("Avg. ROI", f"{filtered_marketing_df['ROI'].mean():.2f}%")
+            with col4:
+                st.metric("Total Customers", f"{filtered_marketing_df['CustomerID'].nunique()}")
 
-        st.subheader("Marketing Performance Visualizations")
+            st.subheader("Marketing Performance Visualizations")
 
-        # Campaign Type Performance
-        campaign_perf = filtered_marketing_df.groupby('CampaignType').agg(
-            AvgSpend=('Spend', 'mean'),
-            AvgConversionRate=('ConversionRate', 'mean'),
-            AvgROI=('ROI', 'mean'),
-            TotalCustomers=('CustomerID', 'nunique')
-        ).reset_index()
+            # Campaign Type Performance
+            if 'CampaignType' in filtered_marketing_df.columns:
+                campaign_perf = filtered_marketing_df.groupby('CampaignType').agg(
+                    AvgSpend=('Spend', 'mean'),
+                    AvgConversionRate=('ConversionRate', 'mean'),
+                    AvgROI=('ROI', 'mean'),
+                    TotalCustomers=('CustomerID', 'nunique')
+                ).reset_index()
 
-        fig_campaign_cr = px.bar(
-            campaign_perf,
-            x='CampaignType',
-            y='AvgConversionRate',
-            title='Average Conversion Rate by Campaign Type',
-            labels={'AvgConversionRate': 'Avg. Conversion Rate (%)'},
-            color='AvgConversionRate',
-            color_continuous_scale=px.colors.sequential.Viridis
-        )
-        st.plotly_chart(fig_campaign_cr, use_container_width=True)
+                fig_campaign_cr = px.bar(
+                    campaign_perf,
+                    x='CampaignType',
+                    y='AvgConversionRate',
+                    title='Average Conversion Rate by Campaign Type',
+                    labels={'AvgConversionRate': 'Avg. Conversion Rate (%)'},
+                    color='AvgConversionRate',
+                    color_continuous_scale=px.colors.sequential.Viridis
+                )
+                st.plotly_chart(fig_campaign_cr, use_container_width=True)
 
-        fig_campaign_roi = px.bar(
-            campaign_perf,
-            x='CampaignType',
-            y='AvgROI',
-            title='Average ROI by Campaign Type',
-            labels={'AvgROI': 'Avg. ROI (%)'},
-            color='AvgROI',
-            color_continuous_scale=px.colors.sequential.Plasma
-        )
-        st.plotly_chart(fig_campaign_roi, use_container_width=True)
+                fig_campaign_roi = px.bar(
+                    campaign_perf,
+                    x='CampaignType',
+                    y='AvgROI',
+                    title='Average ROI by Campaign Type',
+                    labels={'AvgROI': 'Avg. ROI (%)'},
+                    color='AvgROI',
+                    color_continuous_scale=px.colors.sequential.Plasma
+                )
+                st.plotly_chart(fig_campaign_roi, use_container_width=True)
+            else:
+                st.info("Campaign Type visualizations are not available as 'CampaignType' column is missing.")
 
-        # Customer Demographics
-        st.subheader("Customer Demographics")
-        fig_age_dist = px.histogram(
-            filtered_marketing_df,
-            x='Age',
-            nbins=20,
-            title='Distribution of Customer Age',
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        st.plotly_chart(fig_age_dist, use_container_width=True)
+            # Customer Demographics
+            st.subheader("Customer Demographics")
+            if 'Age' in filtered_marketing_df.columns:
+                fig_age_dist = px.histogram(
+                    filtered_marketing_df,
+                    x='Age',
+                    nbins=20,
+                    title='Distribution of Customer Age',
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                st.plotly_chart(fig_age_dist, use_container_width=True)
+            else:
+                st.info("Customer Age distribution is not available as 'Age' column is missing.")
 
-        fig_income_dist = px.histogram(
-            filtered_marketing_df,
-            x='Income',
-            nbins=20,
-            title='Distribution of Customer Income',
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        st.plotly_chart(fig_income_dist, use_container_width=True)
+            if 'Income' in filtered_marketing_df.columns:
+                fig_income_dist = px.histogram(
+                    filtered_marketing_df,
+                    x='Income',
+                    nbins=20,
+                    title='Distribution of Customer Income',
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                st.plotly_chart(fig_income_dist, use_container_width=True)
+            else:
+                st.info("Customer Income distribution is not available as 'Income' column is missing.")
 
-        # AI-powered Marketing Campaign Recommendations
-        st.subheader("💡 AI-Powered Marketing Campaign Recommendations")
-        if gemini_api_key:
-            if st.button("Generate Marketing Campaign Ideas"):
-                with st.spinner("Generating recommendations..."):
-                    try:
-                        # Prepare context for Gemini
-                        campaign_summary = campaign_perf.to_string()
-                        prompt = f"""
-                        Based on the following marketing campaign performance data:
-                        {campaign_summary}
+            # AI-powered Marketing Campaign Recommendations
+            st.subheader("💡 AI-Powered Marketing Campaign Recommendations")
+            if gemini_api_key:
+                if st.button("Generate Marketing Campaign Ideas"):
+                    with st.spinner("Generating recommendations..."):
+                        try:
+                            # Prepare context for Gemini
+                            campaign_summary = campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else "No campaign type data available."
+                            prompt = f"""
+                            Based on the following marketing campaign performance data:
+                            {campaign_summary}
 
-                        And considering the filtered customer demographics:
-                        - Age range: {age_range[0]}-{age_range[1]}
-                        - Income range: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
-                        - Selected campaign types: {', '.join(selected_campaign_type)}
+                            And considering the filtered customer demographics:
+                            - Age range: {age_range[0]}-{age_range[1]}
+                            - Income range: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
+                            - Selected campaign types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
 
-                        Please provide actionable marketing campaign recommendations. Focus on strategies to improve conversion rates and ROI for the most promising segments or campaigns, and suggest new creative angles.
-                        Provide the recommendations in bullet points, with a brief explanation for each.
+                            Please provide actionable marketing campaign recommendations. Focus on strategies to improve conversion rates and ROI for the most promising segments or campaigns, and suggest new creative angles.
+                            Provide the recommendations in bullet points, with a brief explanation for each.
+                            """
+                            model = genai.GenerativeModel('gemini-2.0-flash')
+                            response = model.generate_content(prompt)
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"Error generating recommendations: {e}")
+                            st.info("Please ensure your Gemini API key is valid and you have sufficient quota.")
+            else:
+                st.info("Enter your Gemini API Key in the sidebar to generate marketing campaign ideas.")
+
+            # Instagram Campaign Creator
+            st.subheader("📸 Instagram Campaign Creator")
+            st.markdown("Generate content for your next Instagram post based on your filtered marketing insights.")
+            if gemini_api_key:
+                if st.button("Generate Instagram Post Content"):
+                    with st.spinner("Generating Instagram content..."):
+                        context_prompt = f"""
+                        Target Audience Age: {age_range[0]}-{age_range[1]}
+                        Target Audience Income: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
+                        Selected Campaign Types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
+                        Overall Marketing Performance Summary:\n{campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else 'No campaign type data for summary.'}
                         """
-                        model = genai.GenerativeModel('gemini-2.0-flash')
-                        response = model.generate_content(prompt)
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"Error generating recommendations: {e}")
-                        st.info("Please ensure your Gemini API key is valid and you have sufficient quota.")
-        else:
-            st.info("Enter your Gemini API Key in the sidebar to generate marketing campaign ideas.")
+                        instagram_content = generate_instagram_post(gemini_api_key, context_prompt)
+                        st.markdown(instagram_content)
 
-        # Instagram Campaign Creator
-        st.subheader("📸 Instagram Campaign Creator")
-        st.markdown("Generate content for your next Instagram post based on your filtered marketing insights.")
-        if gemini_api_key:
-            if st.button("Generate Instagram Post Content"):
-                with st.spinner("Generating Instagram content..."):
-                    context_prompt = f"""
-                    Target Audience Age: {age_range[0]}-{age_range[1]}
-                    Target Audience Income: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
-                    Selected Campaign Types: {', '.join(selected_campaign_type)}
-                    Overall Marketing Performance Summary:\n{campaign_perf.to_string()}
-                    """
-                    instagram_content = generate_instagram_post(gemini_api_key, context_prompt)
-                    st.markdown(instagram_content)
-
-                    st.markdown("---")
-                    st.info("**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup, including Facebook Developer App registration, specific permissions, and user authentication flows. This feature provides the content, which you can then manually post.")
-                    st.button("Simulate Post to Instagram (Placeholder)", disabled=True, help="This button is a placeholder. Real Instagram integration requires advanced API setup.")
-        else:
-            st.info("Enter your Gemini API Key in the sidebar to generate Instagram post content.")
+                        st.markdown("---")
+                        st.info("**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup, including Facebook Developer App registration, specific permissions, and user authentication flows. This feature provides the content, which you can then manually post.")
+                        st.button("Simulate Post to Instagram (Placeholder)", disabled=True, help="This button is a placeholder. Real Instagram integration requires advanced API setup.")
+            else:
+                st.info("Enter your Gemini API Key in the sidebar to generate Instagram post content.")
+    else:
+        st.error("Could not load marketing data. Please check Kaggle API credentials and dataset availability.")
 
 
 # --- Financial Analytics Section ---
