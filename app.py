@@ -174,7 +174,7 @@ section = st.sidebar.radio("Go to", ["Marketing Analytics", "Financial Analytics
 # --- Marketing Analytics Section ---
 if section == "Marketing Analytics":
     st.header("📊 Marketing Analytics Dashboard")
-    st.markdown("Analyze your marketing campaign performance and customer segments.")
+    st.markdown("Analyze your marketing campaign performance and customer segments with interactive visualizations.")
 
     # Load data from Kaggle
     marketing_df = load_marketing_data_from_kaggle()
@@ -216,20 +216,27 @@ if section == "Marketing Analytics":
         if filtered_marketing_df.empty:
             st.warning("No data matches the selected filters. Please adjust your selections.")
         else:
-            st.subheader("Key Marketing Indicators")
+            # --- Dashboard Layout ---
+            st.markdown("---") # Visual separator
+
+            # Row 1: Key Performance Indicators
+            st.subheader("🎯 Key Marketing Performance Indicators")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Total Spend", f"${filtered_marketing_df['Spend'].sum():,.2f}")
+                st.metric(label="Total Spend", value=f"${filtered_marketing_df['Spend'].sum():,.2f}", delta_color="off")
             with col2:
-                st.metric("Avg. Conversion Rate", f"{filtered_marketing_df['ConversionRate'].mean():.2f}%")
+                st.metric(label="Avg. Conversion Rate", value=f"{filtered_marketing_df['ConversionRate'].mean():.2f}%", delta_color="off")
             with col3:
-                st.metric("Avg. ROI", f"{filtered_marketing_df['ROI'].mean():.2f}%")
+                st.metric(label="Avg. ROI", value=f"{filtered_marketing_df['ROI'].mean():.2f}%", delta_color="off")
             with col4:
-                st.metric("Total Customers", f"{filtered_marketing_df['CustomerID'].nunique()}")
+                st.metric(label="Total Customers", value=f"{filtered_marketing_df['CustomerID'].nunique()}", delta_color="off")
 
-            st.subheader("Marketing Performance Visualizations")
+            st.markdown("---")
 
-            # Campaign Type Performance
+            # Row 2: Campaign Performance Charts
+            st.subheader("📈 Campaign Performance Analysis")
+            col_chart1, col_chart2 = st.columns(2)
+
             if 'CampaignType' in filtered_marketing_df.columns:
                 campaign_perf = filtered_marketing_df.groupby('CampaignType').agg(
                     AvgSpend=('Spend', 'mean'),
@@ -238,107 +245,146 @@ if section == "Marketing Analytics":
                     TotalCustomers=('CustomerID', 'nunique')
                 ).reset_index()
 
-                fig_campaign_cr = px.bar(
-                    campaign_perf,
-                    x='CampaignType',
-                    y='AvgConversionRate',
-                    title='Average Conversion Rate by Campaign Type',
-                    labels={'AvgConversionRate': 'Avg. Conversion Rate (%)'},
-                    color='AvgConversionRate',
-                    color_continuous_scale=px.colors.sequential.Viridis
-                )
-                st.plotly_chart(fig_campaign_cr, use_container_width=True)
+                with col_chart1:
+                    fig_campaign_cr = px.bar(
+                        campaign_perf,
+                        x='CampaignType',
+                        y='AvgConversionRate',
+                        title='Average Conversion Rate by Campaign Type',
+                        labels={'AvgConversionRate': 'Avg. Conversion Rate (%)', 'CampaignType': 'Campaign Type'},
+                        color='AvgConversionRate',
+                        color_continuous_scale=px.colors.sequential.Tealgrn, # More aesthetic color scale
+                        template="plotly_white" # Clean background
+                    )
+                    fig_campaign_cr.update_layout(title_x=0.5) # Center title
+                    st.plotly_chart(fig_campaign_cr, use_container_width=True)
 
-                fig_campaign_roi = px.bar(
-                    campaign_perf,
-                    x='CampaignType',
-                    y='AvgROI',
-                    title='Average ROI by Campaign Type',
-                    labels={'AvgROI': 'Avg. ROI (%)'},
-                    color='AvgROI',
-                    color_continuous_scale=px.colors.sequential.Plasma
-                )
-                st.plotly_chart(fig_campaign_roi, use_container_width=True)
+                with col_chart2:
+                    fig_campaign_roi = px.bar(
+                        campaign_perf,
+                        x='CampaignType',
+                        y='AvgROI',
+                        title='Average ROI by Campaign Type',
+                        labels={'AvgROI': 'Avg. ROI (%)', 'CampaignType': 'Campaign Type'},
+                        color='AvgROI',
+                        color_continuous_scale=px.colors.sequential.Plasma, # Different color scale
+                        template="plotly_white"
+                    )
+                    fig_campaign_roi.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_campaign_roi, use_container_width=True)
             else:
                 st.info("Campaign Type visualizations are not available as 'CampaignType' column is missing.")
 
-            # Customer Demographics
-            st.subheader("Customer Demographics")
-            if 'Age' in filtered_marketing_df.columns:
-                fig_age_dist = px.histogram(
+
+            st.markdown("---")
+
+            # Row 3: Customer Demographics & Spend vs. Conversions
+            st.subheader("👥 Customer Demographics & Engagement")
+            col_demo1, col_demo2 = st.columns(2)
+
+            with col_demo1:
+                if 'Age' in filtered_marketing_df.columns:
+                    fig_age_dist = px.histogram(
+                        filtered_marketing_df,
+                        x='Age',
+                        nbins=20,
+                        title='Distribution of Customer Age',
+                        color_discrete_sequence=px.colors.qualitative.Pastel,
+                        template="plotly_white"
+                    )
+                    fig_age_dist.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_age_dist, use_container_width=True)
+                else:
+                    st.info("Customer Age distribution is not available as 'Age' column is missing.")
+
+            with col_demo2:
+                if 'Income' in filtered_marketing_df.columns:
+                    fig_income_dist = px.histogram(
+                        filtered_marketing_df,
+                        x='Income',
+                        nbins=20,
+                        title='Distribution of Customer Income',
+                        color_discrete_sequence=px.colors.qualitative.Pastel_r, # Reversed pastel for variety
+                        template="plotly_white"
+                    )
+                    fig_income_dist.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_income_dist, use_container_width=True)
+                else:
+                    st.info("Customer Income distribution is not available as 'Income' column is missing.")
+
+            # New chart: Spend vs. Conversions Scatter Plot
+            if 'Spend' in filtered_marketing_df.columns and 'Conversions' in filtered_marketing_df.columns:
+                fig_spend_conv = px.scatter(
                     filtered_marketing_df,
-                    x='Age',
-                    nbins=20,
-                    title='Distribution of Customer Age',
-                    color_discrete_sequence=px.colors.qualitative.Pastel
+                    x='Spend',
+                    y='Conversions',
+                    color='CampaignType' if 'CampaignType' in filtered_marketing_df.columns else None,
+                    size='PurchaseValue' if 'PurchaseValue' in filtered_marketing_df.columns else None,
+                    hover_name='CustomerID',
+                    title='Spend vs. Conversions by Campaign (Size by Purchase Value)',
+                    labels={'Spend': 'Marketing Spend ($)', 'Conversions': 'Number of Conversions'},
+                    template="plotly_white",
+                    color_discrete_sequence=px.colors.qualitative.D3 # D3 palette for scatter
                 )
-                st.plotly_chart(fig_age_dist, use_container_width=True)
+                fig_spend_conv.update_layout(title_x=0.5)
+                st.plotly_chart(fig_spend_conv, use_container_width=True)
             else:
-                st.info("Customer Age distribution is not available as 'Age' column is missing.")
+                st.info("Spend vs. Conversions chart not available due to missing 'Spend' or 'Conversions' columns.")
 
-            if 'Income' in filtered_marketing_df.columns:
-                fig_income_dist = px.histogram(
-                    filtered_marketing_df,
-                    x='Income',
-                    nbins=20,
-                    title='Distribution of Customer Income',
-                    color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                st.plotly_chart(fig_income_dist, use_container_width=True)
-            else:
-                st.info("Customer Income distribution is not available as 'Income' column is missing.")
+            st.markdown("---")
 
-            # AI-powered Marketing Campaign Recommendations
-            st.subheader("💡 AI-Powered Marketing Campaign Recommendations")
-            if gemini_api_key:
-                if st.button("Generate Marketing Campaign Ideas"):
-                    with st.spinner("Generating recommendations..."):
-                        try:
-                            # Prepare context for Gemini
-                            campaign_summary = campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else "No campaign type data available."
-                            prompt = f"""
-                            Based on the following marketing campaign performance data:
-                            {campaign_summary}
+            # Row 4: AI Recommendations & Instagram Creator (using expanders for neatness)
+            st.subheader("🤖 AI-Powered Marketing Tools")
 
-                            And considering the filtered customer demographics:
-                            - Age range: {age_range[0]}-{age_range[1]}
-                            - Income range: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
-                            - Selected campaign types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
+            with st.expander("💡 Generate Marketing Campaign Ideas", expanded=False):
+                st.markdown("Leverage AI to get strategic recommendations based on your filtered data.")
+                if gemini_api_key:
+                    if st.button("Generate Ideas Now"):
+                        with st.spinner("Generating recommendations..."):
+                            try:
+                                campaign_summary = campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else "No campaign type data available."
+                                prompt = f"""
+                                Based on the following marketing campaign performance data:
+                                {campaign_summary}
 
-                            Please provide actionable marketing campaign recommendations. Focus on strategies to improve conversion rates and ROI for the most promising segments or campaigns, and suggest new creative angles.
-                            Provide the recommendations in bullet points, with a brief explanation for each.
+                                And considering the filtered customer demographics:
+                                - Age range: {age_range[0]}-{age_range[1]}
+                                - Income range: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
+                                - Selected campaign types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
+
+                                Please provide actionable marketing campaign recommendations. Focus on strategies to improve conversion rates and ROI for the most promising segments or campaigns, and suggest new creative angles.
+                                Provide the recommendations in bullet points, with a brief explanation for each.
+                                """
+                                model = genai.GenerativeModel('gemini-2.0-flash')
+                                response = model.generate_content(prompt)
+                                st.markdown(response.text)
+                            except Exception as e:
+                                st.error(f"Error generating recommendations: {e}")
+                                st.info("Please ensure your Gemini API key is valid and you have sufficient quota.")
+                else:
+                    st.info("Enter your Gemini API Key in the sidebar to generate marketing campaign ideas.")
+
+            with st.expander("📸 Instagram Campaign Creator", expanded=False):
+                st.markdown("Generate ready-to-use content (caption, hashtags, image idea) for your next Instagram post.")
+                if gemini_api_key:
+                    if st.button("Generate Instagram Post"):
+                        with st.spinner("Generating Instagram content..."):
+                            context_prompt = f"""
+                            Target Audience Age: {age_range[0]}-{age_range[1]}
+                            Target Audience Income: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
+                            Selected Campaign Types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
+                            Overall Marketing Performance Summary:\n{campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else 'No campaign type data for summary.'}
                             """
-                            model = genai.GenerativeModel('gemini-2.0-flash')
-                            response = model.generate_content(prompt)
-                            st.markdown(response.text)
-                        except Exception as e:
-                            st.error(f"Error generating recommendations: {e}")
-                            st.info("Please ensure your Gemini API key is valid and you have sufficient quota.")
-            else:
-                st.info("Enter your Gemini API Key in the sidebar to generate marketing campaign ideas.")
+                            instagram_content = generate_instagram_post(gemini_api_key, context_prompt)
+                            st.markdown(instagram_content)
 
-            # Instagram Campaign Creator
-            st.subheader("📸 Instagram Campaign Creator")
-            st.markdown("Generate content for your next Instagram post based on your filtered marketing insights.")
-            if gemini_api_key:
-                if st.button("Generate Instagram Post Content"):
-                    with st.spinner("Generating Instagram content..."):
-                        context_prompt = f"""
-                        Target Audience Age: {age_range[0]}-{age_range[1]}
-                        Target Audience Income: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
-                        Selected Campaign Types: {', '.join(selected_campaign_type) if selected_campaign_type else 'All available'}
-                        Overall Marketing Performance Summary:\n{campaign_perf.to_string() if 'CampaignType' in filtered_marketing_df.columns else 'No campaign type data for summary.'}
-                        """
-                        instagram_content = generate_instagram_post(gemini_api_key, context_prompt)
-                        st.markdown(instagram_content)
-
-                        st.markdown("---")
-                        st.info("**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup, including Facebook Developer App registration, specific permissions, and user authentication flows. This feature provides the content, which you can then manually post.")
-                        st.button("Simulate Post to Instagram (Placeholder)", disabled=True, help="This button is a placeholder. Real Instagram integration requires advanced API setup.")
-            else:
-                st.info("Enter your Gemini API Key in the sidebar to generate Instagram post content.")
+                            st.markdown("---")
+                            st.info("**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup, including Facebook Developer App registration, specific permissions, and user authentication flows. This feature provides the content, which you can then manually post.")
+                            st.button("Simulate Post to Instagram (Placeholder)", disabled=True, help="This button is a placeholder. Real Instagram integration requires advanced API setup.")
+                else:
+                    st.info("Enter your Gemini API Key in the sidebar to generate Instagram post content.")
     else:
-        st.error("Could not load marketing data. Please check Kaggle API credentials and dataset availability.")
+        st.error("Could not load marketing data. Please ensure your Kaggle API credentials are correctly set up (KAGGLE_USERNAME and KAGGLE_KEY as environment variables or in ~/.kaggle/kaggle.json) and the dataset is accessible.")
 
 
 # --- Financial Analytics Section ---
@@ -389,7 +435,8 @@ elif section == "Financial Analytics":
                 title=f'{ticker_symbol} Stock Price',
                 xaxis_title='Date',
                 yaxis_title='Price',
-                xaxis_rangeslider_visible=False # Hide the range slider for cleaner view
+                xaxis_rangeslider_visible=False, # Hide the range slider for cleaner view
+                template="plotly_white"
             )
             st.plotly_chart(fig_price, use_container_width=True)
 
@@ -401,7 +448,8 @@ elif section == "Financial Analytics":
                 y='Volume',
                 title=f'{ticker_symbol} Trading Volume',
                 labels={'Volume': 'Volume'},
-                color_discrete_sequence=px.colors.qualitative.Plotly
+                color_discrete_sequence=px.colors.qualitative.Plotly,
+                template="plotly_white"
             )
             st.plotly_chart(fig_volume, use_container_width=True)
 
