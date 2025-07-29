@@ -82,6 +82,27 @@ def calculate_financial_metrics(df):
     metrics['Market Cap'] = yf.Ticker(df.index.name).info.get('marketCap') if df.index.name else 'N/A' # Get market cap from info
     return metrics
 
+# Function to generate Instagram post content using Gemini
+def generate_instagram_post(gemini_api_key, context_prompt):
+    if not gemini_api_key:
+        return "Please enter your Gemini API Key to generate Instagram content."
+
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        prompt = f"""
+        Generate an Instagram post for a marketing campaign. Provide:
+        1. A catchy Instagram caption (aim for concise and impactful, max 2200 characters).
+        2. 5-10 relevant and trending hashtags.
+        3. A brief description of an ideal image or video concept for this post.
+
+        Consider the following context for the campaign:
+        {context_prompt}
+        """
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error generating Instagram content: {e}. Please ensure your Gemini API key is valid and you have sufficient quota."
+
 # --- Main Application Layout ---
 st.title("📈 Marketing & Finance Insight Hub")
 st.markdown("""
@@ -211,6 +232,28 @@ if section == "Marketing Analytics":
         else:
             st.info("Enter your Gemini API Key in the sidebar to generate marketing campaign ideas.")
 
+        # Instagram Campaign Creator
+        st.subheader("📸 Instagram Campaign Creator")
+        st.markdown("Generate content for your next Instagram post based on your filtered marketing insights.")
+        if gemini_api_key:
+            if st.button("Generate Instagram Post Content"):
+                with st.spinner("Generating Instagram content..."):
+                    context_prompt = f"""
+                    Target Audience Age: {age_range[0]}-{age_range[1]}
+                    Target Audience Income: ${income_range[0]:,.0f}-${income_range[1]:,.0f}
+                    Selected Campaign Types: {', '.join(selected_campaign_type)}
+                    Overall Marketing Performance Summary:\n{campaign_perf.to_string()}
+                    """
+                    instagram_content = generate_instagram_post(gemini_api_key, context_prompt)
+                    st.markdown(instagram_content)
+
+                    st.markdown("---")
+                    st.info("**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup, including Facebook Developer App registration, specific permissions, and user authentication flows. This feature provides the content, which you can then manually post.")
+                    st.button("Simulate Post to Instagram (Placeholder)", disabled=True, help="This button is a placeholder. Real Instagram integration requires advanced API setup.")
+        else:
+            st.info("Enter your Gemini API Key in the sidebar to generate Instagram post content.")
+
+
 # --- Financial Analytics Section ---
 elif section == "Financial Analytics":
     st.header("💰 Financial Analytics Dashboard")
@@ -280,7 +323,7 @@ elif section == "AI Chatbot":
     st.header("💬 AI Chatbot (Powered by Gemini)")
     st.markdown("""
     Ask me anything about marketing, finance, or general knowledge!
-    **Note**: For voice input, you would typically integrate with a Speech-to-Text (STT) service or library (e.g., `SpeechRecognition` in Python, or browser's Web Speech API for web apps). This demo uses text input for simplicity.
+    You can also ask me to **"create an Instagram campaign"** to get content ideas.
     """)
 
     if gemini_api_key:
@@ -309,10 +352,21 @@ elif section == "AI Chatbot":
                     model = genai.GenerativeModel('gemini-2.0-flash')
                     chat = model.start_chat(history=[]) # Start a new chat for each interaction for simplicity
                                                         # For persistent chat, pass st.session_state.messages as history
-                    response = chat.send_message(prompt, stream=True)
-                    for chunk in response:
-                        full_response += chunk.text
-                        message_placeholder.markdown(full_response + "▌")
+
+                    # Check if the user is asking for an Instagram campaign
+                    if "instagram campaign" in prompt.lower() or "create post" in prompt.lower() or "social media campaign" in prompt.lower():
+                        # For chatbot, we don't have filtered marketing data directly.
+                        # We'll ask Gemini to generate general Instagram content or based on the prompt's context.
+                        context_for_instagram_bot = f"User request: '{prompt}'. Generate an Instagram post based on this."
+                        instagram_content = generate_instagram_post(gemini_api_key, context_for_instagram_bot)
+                        full_response = instagram_content + "\n\n"
+                        full_response += "**Note on Instagram Posting:** Direct posting to Instagram from a web application requires complex API setup. This provides the content, which you can then manually post."
+                    else:
+                        # General chat response
+                        response = chat.send_message(prompt, stream=True)
+                        for chunk in response:
+                            full_response += chunk.text
+                            message_placeholder.markdown(full_response + "▌")
                     message_placeholder.markdown(full_response)
                 except Exception as e:
                     full_response = f"Error: {e}. Please check your API key and try again."
