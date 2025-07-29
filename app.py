@@ -284,31 +284,65 @@ if section == "Marketing Analytics":
 
             with col_demo1:
                 if 'Age' in filtered_marketing_df.columns:
-                    fig_age_dist = px.histogram(
+                    # Original Histogram for Age
+                    fig_age_hist = px.histogram(
                         filtered_marketing_df,
                         x='Age',
                         nbins=20,
-                        title='Distribution of Customer Age',
+                        title='Distribution of Customer Age (Histogram)',
                         color_discrete_sequence=px.colors.qualitative.Pastel,
                         template="plotly_white"
                     )
-                    fig_age_dist.update_layout(title_x=0.5)
-                    st.plotly_chart(fig_age_dist, use_container_width=True)
+                    fig_age_hist.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_age_hist, use_container_width=True)
+
+                    # New Violin Plot for Age
+                    fig_age_violin = px.violin(
+                        filtered_marketing_df,
+                        y='Age',
+                        x='CampaignType' if 'CampaignType' in filtered_marketing_df.columns else None,
+                        box=True, # Show box plot inside violin
+                        points="all", # Show all points
+                        title='Customer Age Distribution by Campaign Type (Violin Plot)',
+                        labels={'Age': 'Age', 'CampaignType': 'Campaign Type'},
+                        color='CampaignType' if 'CampaignType' in filtered_marketing_df.columns else None,
+                        color_discrete_sequence=px.colors.qualitative.Bold,
+                        template="plotly_white"
+                    )
+                    fig_age_violin.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_age_violin, use_container_width=True)
                 else:
                     st.info("Customer Age distribution is not available as 'Age' column is missing.")
 
             with col_demo2:
                 if 'Income' in filtered_marketing_df.columns:
-                    fig_income_dist = px.histogram(
+                    # Original Histogram for Income
+                    fig_income_hist = px.histogram(
                         filtered_marketing_df,
                         x='Income',
                         nbins=20,
-                        title='Distribution of Customer Income',
-                        color_discrete_sequence=px.colors.qualitative.Pastel_r, # Reversed pastel for variety
+                        title='Distribution of Customer Income (Histogram)',
+                        color_discrete_sequence=px.colors.qualitative.Pastel_r,
                         template="plotly_white"
                     )
-                    fig_income_dist.update_layout(title_x=0.5)
-                    st.plotly_chart(fig_income_dist, use_container_width=True)
+                    fig_income_hist.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_income_hist, use_container_width=True)
+
+                    # New Violin Plot for Income
+                    fig_income_violin = px.violin(
+                        filtered_marketing_df,
+                        y='Income',
+                        x='CampaignType' if 'CampaignType' in filtered_marketing_df.columns else None,
+                        box=True, # Show box plot inside violin
+                        points="all", # Show all points
+                        title='Customer Income Distribution by Campaign Type (Violin Plot)',
+                        labels={'Income': 'Income', 'CampaignType': 'Campaign Type'},
+                        color='CampaignType' if 'CampaignType' in filtered_marketing_df.columns else None,
+                        color_discrete_sequence=px.colors.qualitative.Vivid,
+                        template="plotly_white"
+                    )
+                    fig_income_violin.update_layout(title_x=0.5)
+                    st.plotly_chart(fig_income_violin, use_container_width=True)
                 else:
                     st.info("Customer Income distribution is not available as 'Income' column is missing.")
 
